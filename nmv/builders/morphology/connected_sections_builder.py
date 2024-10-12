@@ -141,7 +141,7 @@ class ConnectedSectionsBuilder(MorphologyBuilderBase):
         skeleton_poly_lines = list()
 
         # Apical dendrite
-        nmv.logger.info('Reconstructing arbors')
+        nmv.logger.info('Reconstructing arbors - orly')
         if not self.options.morphology.ignore_apical_dendrites:
             if self.morphology.has_apical_dendrites():
                 for arbor in self.morphology.apical_dendrites:

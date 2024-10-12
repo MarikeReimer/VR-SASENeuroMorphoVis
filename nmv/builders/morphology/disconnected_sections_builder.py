@@ -35,8 +35,10 @@ import nmv.utilities
 ####################################################################################################
 # @DisconnectedSectionsBuilder
 ####################################################################################################
+
 class DisconnectedSectionsBuilder(MorphologyBuilderBase):
     """Builds and draws the morphology as a series of disconnected sections."""
+    print('ping')
 
     ################################################################################################
     # @__init__
