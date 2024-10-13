@@ -9,6 +9,8 @@ from pynwb.file import Subject
 from pynwb.base import Images
 #from pynwb.image import RGBImage
 
+root_collection = bpy.data.collections["CollectionToNWB"]
+
 def NWBImageSegmentation():
     #Create NWB objects and metadata
     #Create pynwb subject
@@ -84,31 +86,13 @@ def NWBImageSegmentation():
     module = nwbfile.create_processing_module("MorphologyData", 'Contains processed morphology data from Blender.')   
     image_segmentation = ImageSegmentation()
     module.add(image_segmentation)
-    return image_segmentation, nwbfile
+    return image_segmentation, nwbfile, imaging_plane
 
 NWBObjects = NWBImageSegmentation()
 image_segmentation = NWBObjects[0]
-nwbfile = NWBObjects[0]
+nwbfile = NWBObjects[1]
+imaging_plane = NWBObjects[2]
 
-print(image_segmentation)
-# Start from the master collection or any specific collection
-root_collection = bpy.data.collections["CollectionToNWB"]
-
-
-def iterate_collections(collection, image_segmentation):
-    # Print the collection's name
-    print("Collection:", collection.name)
-    
-    # Iterate through all objects in the collection
-    for obj in collection.objects:
-        print(f"  Object: {obj.name}")
-        BlenderMorphologyDataToNWB(obj, image_segmentation)
-    
-    # Recursively iterate through child collections
-    for child_collection in collection.children:
-        iterate_collections(child_collection)
-        
-iterate_collections(root_collection, image_segmentation)
 
 #Extract location, volume, surface area of meshes 
 def find_mesh_attributes(self):                  
@@ -133,55 +117,87 @@ def find_mesh_attributes(self):
 
     return center_of_mass, volume, surface_area
 
-def iterate_collections(collection, image_segmentation):
-    # Print the collection's name
+
+#TODO: The first plane segmentation adds for all objects
+
+def BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane):
+    
+    print('Object in NWB', obj)
+    #Make dummy data to enable plane segmentation    
+    pixel_mask = np.array([[0, 0, 0]] * 1)
+    segmentation_name = obj.name + '_plane_segmentation'
+    plane_segmentation = image_segmentation.create_plane_segmentation(
+        name = segmentation_name,
+        description = 'output from segmenting a mesh in Blender',
+        imaging_plane = imaging_plane     
+        #reference_images = ['images']
+            )     
+    mesh_attributes = find_mesh_attributes(obj)
+    center_of_mass = mesh_attributes[0]
+    volume = mesh_attributes[1]
+    surface_area = mesh_attributes[2]
+
+    #Create unique name
+    segmentation_name = obj.name + '_plane_segmentaton'
+    #Add columns to ROI to hold extracted variables
+    plane_segmentation.add_column('center_of_mass', 'center_of_mass')
+    plane_segmentation.add_column('volume', 'volume')
+    plane_segmentation.add_column('surface_area', 'surface_area')        
+
+    plane_segmentation.add_roi(                
+        pixel_mask = pixel_mask,
+        center_of_mass = center_of_mass,
+        volume=volume,
+        surface_area = surface_area,
+        )    
+    
+    return plane_segmentation   
+     
+# # Start from the master collection or any specific collection
+# def iterate_collections(collection, image_segmentation, imaging_plane):
+#     print("Collection:", collection.name)
+    
+#     # Iterate through all objects in the collection
+#     for obj in collection.objects:
+#         print(f"  Object: {obj.name}")
+#         BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane)
+    
+#     # Recursively iterate through child collections
+#     for child_collection in collection.children:
+#         iterate_collections(child_collection, image_segmentation, imaging_plane)
+
+# iterate_collections(root_collection, image_segmentation, imaging_plane)
+
+
+def iterate_collections(collection, image_segmentation, imaging_plane):
     print("Collection:", collection.name)
     
     # Iterate through all objects in the collection
     for obj in collection.objects:
-        print(f"  Object: {obj.name}")
-        BlenderMorphologyDataToNWB(obj, image_segmentation)
+        print(f"  Object in iterator: {obj.name}")
+        
+        # Debugging prints for image_segmentation and imaging_plane
+        print(f"image_segmentation: {image_segmentation}")
+        print(f"imaging_plane: {imaging_plane}")
+        
+        # Call BlenderMorphologyDataToNWB
+        if obj.type == 'MESH':
+            BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane)
     
     # Recursively iterate through child collections
     for child_collection in collection.children:
-        iterate_collections(child_collection)
+        iterate_collections(child_collection, image_segmentation, imaging_plane)
 
-def BlenderMorphologyDataToNWB(obj, image_segmentation):
-    #Make dummy data to enable plane segmentation    
-    pixel_mask = np.array([[0, 0, 0]] * 1)
-    if obj.type == 'MESH':
-        segmentation_name = obj.name + '_plane_segmentaton'
-        plane_segmentation = image_segmentation.create_plane_segmentation(
-            name = segmentation_name,
-            description = 'output from segmenting a mesh in Blender',
-            imaging_plane = imaging_plane     
-            #reference_images = ['images']
-                )     
-        mesh_attributes = find_mesh_attributes(obj)
-        center_of_mass = mesh_attributes[0]
-        volume = mesh_attributes[1]
-        surface_area = mesh_attributes[2]
+# Ensure image_segmentation and imaging_plane are properly defined
+print(f"root_collection: {root_collection}")
+print(f"image_segmentation: {image_segmentation}")
 
-        #Create unique name
-        segmentation_name = obj.name + '_plane_segmentaton'
-        print("plane segmentation_name", segmentation_name)
-        #Add columns to ROI to hold extracted variables
-        plane_segmentation.add_column('center_of_mass', 'center_of_mass')
-        plane_segmentation.add_column('volume', 'volume')
-        plane_segmentation.add_column('surface_area', 'surface_area')        
-    
-        plane_segmentation.add_roi(                
-            pixel_mask = pixel_mask,
-            center_of_mass = center_of_mass,
-            volume=volume,
-            surface_area = surface_area,
-            )    
-
-
-
+# Call the function
+iterate_collections(root_collection, image_segmentation, imaging_plane)
 
 #Use DANDI Archives convention:prepend sub-, insert _ses-
 #nwbfile_name = 'sub-' + 'subject_id' + '_ses-' + 'identifier' + '.nwb'
+print(nwbfile.processing['MorphologyData'].data_interfaces)
 
-with NWBHDF5IO('FindMeNWB.nwb', 'w') as io:
+with NWBHDF5IO('SimpleAllenSegmentation.nwb', 'w') as io:
     io.write(nwbfile)
