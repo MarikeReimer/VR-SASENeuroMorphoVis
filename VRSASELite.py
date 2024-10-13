@@ -117,83 +117,133 @@ def find_mesh_attributes(self):
 
     return center_of_mass, volume, surface_area
 
-
-#TODO: The first plane segmentation adds for all objects
-
-def BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane):
+def BlenderMorphologyDataToNWB(obj, plane_segmentation):
+    print('Object in NWB:', obj.name)
     
-    print('Object in NWB', obj)
-    #Make dummy data to enable plane segmentation    
+    # Dummy data for plane segmentation    
     pixel_mask = np.array([[0, 0, 0]] * 1)
-    segmentation_name = obj.name + '_plane_segmentation'
-    plane_segmentation = image_segmentation.create_plane_segmentation(
-        name = segmentation_name,
-        description = 'output from segmenting a mesh in Blender',
-        imaging_plane = imaging_plane     
-        #reference_images = ['images']
-            )     
+    
+    # Extract mesh attributes
     mesh_attributes = find_mesh_attributes(obj)
     center_of_mass = mesh_attributes[0]
     volume = mesh_attributes[1]
     surface_area = mesh_attributes[2]
 
-    #Create unique name
-    segmentation_name = obj.name + '_plane_segmentaton'
-    #Add columns to ROI to hold extracted variables
-    plane_segmentation.add_column('center_of_mass', 'center_of_mass')
-    plane_segmentation.add_column('volume', 'volume')
-    plane_segmentation.add_column('surface_area', 'surface_area')        
+    # Add columns to ROI if not already added (check to avoid duplication)
+    if 'center_of_mass' not in plane_segmentation.colnames:
+        plane_segmentation.add_column('center_of_mass', 'center_of_mass')
+        plane_segmentation.add_column('volume', 'volume')
+        plane_segmentation.add_column('surface_area', 'surface_area')        
 
-    plane_segmentation.add_roi(                
-        pixel_mask = pixel_mask,
-        center_of_mass = center_of_mass,
+    # Add ROI for this object
+    plane_segmentation.add_roi(
+        pixel_mask=pixel_mask,
+        center_of_mass=center_of_mass,
         volume=volume,
-        surface_area = surface_area,
-        )    
+        surface_area=surface_area
+    )
     
-    return plane_segmentation   
-     
-# # Start from the master collection or any specific collection
+    return plane_segmentation
+def BlenderMorphologyDataToNWB(obj, plane_segmentation):
+    print(f'Processing Object in NWB: {obj.name}')
+    
+    # Dummy data for plane segmentation    
+    pixel_mask = np.array([[0, 0, 0]] * 1)
+    
+    # Extract mesh attributes
+    mesh_attributes = find_mesh_attributes(obj)
+    center_of_mass = mesh_attributes[0]
+    volume = mesh_attributes[1]
+    surface_area = mesh_attributes[2]
+
+    # Add columns to ROI if not already added (check to avoid duplication)
+    if 'center_of_mass' not in plane_segmentation.colnames:
+        plane_segmentation.add_column('center_of_mass', 'center_of_mass')
+        plane_segmentation.add_column('volume', 'volume')
+        plane_segmentation.add_column('surface_area', 'surface_area')
+
+    # Add ROI for this object
+    plane_segmentation.add_roi(
+        pixel_mask=pixel_mask,
+        center_of_mass=center_of_mass,
+        volume=volume,
+        surface_area=surface_area
+    )
+    
+    return plane_segmentation
+
+#OPTION 1: Creates plane_segmentations for only mesh objects (no curves).
+
+def iterate_collections(collection, image_segmentation, imaging_plane):
+    print(f"Iterating Collection: {collection.name}")
+    
+    # Check if the collection contains objects and avoid creating a segmentation for the collection itself
+    for obj in collection.objects:
+        print(f"Object in iterator: {obj.name}")
+        
+        # Process only MESH objects
+        if obj.type == 'MESH':
+            segmentation_name = obj.name + '_plane_segmentation'
+            
+            # Check if this plane segmentation already exists or create a new one
+            if segmentation_name not in [ps.name for ps in image_segmentation.plane_segmentations.values()]:
+                plane_segmentation = image_segmentation.create_plane_segmentation(
+                    name=segmentation_name,
+                    description='Output from segmenting a mesh in Blender',
+                    imaging_plane=imaging_plane
+                )
+                print(f"Created new plane segmentation: {segmentation_name}")
+            else:
+                plane_segmentation = image_segmentation.plane_segmentations[segmentation_name]
+                print(f"Using existing plane segmentation: {segmentation_name}")
+            
+            # Process the MESH object
+            BlenderMorphologyDataToNWB(obj, plane_segmentation)
+        else:
+            print(f"Skipping non-MESH object: {obj.name}")
+    
+    # Recursively iterate through child collections, avoiding segmentation for the collection itself
+    for child_collection in collection.children:
+        if isinstance(child_collection, bpy.types.Collection):
+            iterate_collections(child_collection, image_segmentation, imaging_plane)
+        else:
+            print(f"Skipping child collection that is not valid: {child_collection.name}")
+
+
+# Debugging root_collection and image_segmentation
+print(f"image_segmentation: {image_segmentation}")
+
+# Call the iteration function, ensuring CollectionToNWB is not treated as a plane segmentation
+iterate_collections(root_collection, image_segmentation, imaging_plane)
+
+
+#OPTION 2: Creates plane_segmentations for non-mesh objects like curves and skips missing data values.
+
 # def iterate_collections(collection, image_segmentation, imaging_plane):
-#     print("Collection:", collection.name)
+#     print("Iterating Collection:", collection.name)
     
 #     # Iterate through all objects in the collection
 #     for obj in collection.objects:
-#         print(f"  Object: {obj.name}")
-#         BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane)
+#         print(f"Object in iterator: {obj.name}")
+        
+#         # Process only MESH objects
+#         if obj.type == 'MESH':
+#             # Create a single PlaneSegmentation for the collection
+#             segmentation_name = collection.name + '_plane_segmentation'
+#             plane_segmentation = image_segmentation.create_plane_segmentation(
+#             name=segmentation_name,
+#             description='Output from segmenting a mesh in Blender',
+#             imaging_plane=imaging_plane
+#             )   
+        
+#             print(f"Processing MESH object: {obj.name}")
+#             BlenderMorphologyDataToNWB(obj, plane_segmentation)
+#         else:
+#             print(f"Skipping non-MESH object: {obj.name}")
     
 #     # Recursively iterate through child collections
 #     for child_collection in collection.children:
 #         iterate_collections(child_collection, image_segmentation, imaging_plane)
-
-# iterate_collections(root_collection, image_segmentation, imaging_plane)
-
-
-def iterate_collections(collection, image_segmentation, imaging_plane):
-    print("Collection:", collection.name)
-    
-    # Iterate through all objects in the collection
-    for obj in collection.objects:
-        print(f"  Object in iterator: {obj.name}")
-        
-        # Debugging prints for image_segmentation and imaging_plane
-        print(f"image_segmentation: {image_segmentation}")
-        print(f"imaging_plane: {imaging_plane}")
-        
-        # Call BlenderMorphologyDataToNWB
-        if obj.type == 'MESH':
-            BlenderMorphologyDataToNWB(obj, image_segmentation, imaging_plane)
-    
-    # Recursively iterate through child collections
-    for child_collection in collection.children:
-        iterate_collections(child_collection, image_segmentation, imaging_plane)
-
-# Ensure image_segmentation and imaging_plane are properly defined
-print(f"root_collection: {root_collection}")
-print(f"image_segmentation: {image_segmentation}")
-
-# Call the function
-iterate_collections(root_collection, image_segmentation, imaging_plane)
 
 #Use DANDI Archives convention:prepend sub-, insert _ses-
 #nwbfile_name = 'sub-' + 'subject_id' + '_ses-' + 'identifier' + '.nwb'
