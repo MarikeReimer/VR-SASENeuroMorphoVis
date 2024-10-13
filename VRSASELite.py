@@ -144,6 +144,7 @@ def BlenderMorphologyDataToNWB(obj, plane_segmentation):
     )
     
     return plane_segmentation
+
 def BlenderMorphologyDataToNWB(obj, plane_segmentation):
     print(f'Processing Object in NWB: {obj.name}')
     
@@ -219,33 +220,33 @@ iterate_collections(root_collection, image_segmentation, imaging_plane)
 
 #OPTION 2: Creates plane_segmentations for non-mesh objects like curves and skips missing data values.
 
-# def iterate_collections(collection, image_segmentation, imaging_plane):
-#     print("Iterating Collection:", collection.name)
+def iterate_collections(collection, image_segmentation, imaging_plane):
+    print("Iterating Collection:", collection.name)
     
-#     # Iterate through all objects in the collection
-#     for obj in collection.objects:
-#         print(f"Object in iterator: {obj.name}")
+    # Iterate through all objects in the collection
+    for obj in collection.objects:
+        print(f"Object in iterator: {obj.name}")
         
-#         # Process only MESH objects
-#         if obj.type == 'MESH':
-#             # Create a single PlaneSegmentation for the collection
-#             segmentation_name = collection.name + '_plane_segmentation'
-#             plane_segmentation = image_segmentation.create_plane_segmentation(
-#             name=segmentation_name,
-#             description='Output from segmenting a mesh in Blender',
-#             imaging_plane=imaging_plane
-#             )   
+        # Process only MESH objects
+        if obj.type == 'MESH':
+            # Create a single PlaneSegmentation for the collection
+            segmentation_name = collection.name + '_plane_segmentation'
+            plane_segmentation = image_segmentation.create_plane_segmentation(
+            name=segmentation_name,
+            description='Output from segmenting a mesh in Blender',
+            imaging_plane=imaging_plane
+            )   
         
-#             print(f"Processing MESH object: {obj.name}")
-#             BlenderMorphologyDataToNWB(obj, plane_segmentation)
-#         else:
-#             print(f"Skipping non-MESH object: {obj.name}")
+            print(f"Processing MESH object: {obj.name}")
+            BlenderMorphologyDataToNWB(obj, plane_segmentation)
+        else:
+            print(f"Skipping non-MESH object: {obj.name}")
     
-#     # Recursively iterate through child collections
-#     for child_collection in collection.children:
-#         iterate_collections(child_collection, image_segmentation, imaging_plane)
+    # Recursively iterate through child collections
+    for child_collection in collection.children:
+        iterate_collections(child_collection, image_segmentation, imaging_plane)
 
-#Use DANDI Archives convention:prepend sub-, insert _ses-
+#BEST PRACTICE: Use DANDI Archives convention:prepend sub-, insert _ses-
 #nwbfile_name = 'sub-' + 'subject_id' + '_ses-' + 'identifier' + '.nwb'
 print(nwbfile.processing['MorphologyData'].data_interfaces)
 
