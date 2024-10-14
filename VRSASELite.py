@@ -145,35 +145,6 @@ def BlenderMorphologyDataToNWB(obj, plane_segmentation):
     
     return plane_segmentation
 
-def BlenderMorphologyDataToNWB(obj, plane_segmentation):
-    print(f'Processing Object in NWB: {obj.name}')
-    
-    # Dummy data for plane segmentation    
-    pixel_mask = np.array([[0, 0, 0]] * 1)
-    
-    # Extract mesh attributes
-    mesh_attributes = find_mesh_attributes(obj)
-    center_of_mass = mesh_attributes[0]
-    volume = mesh_attributes[1]
-    surface_area = mesh_attributes[2]
-
-    # Add columns to ROI if not already added (check to avoid duplication)
-    if 'center_of_mass' not in plane_segmentation.colnames:
-        plane_segmentation.add_column('center_of_mass', 'center_of_mass')
-        plane_segmentation.add_column('volume', 'volume')
-        plane_segmentation.add_column('surface_area', 'surface_area')
-
-    # Add ROI for this object
-    plane_segmentation.add_roi(
-        pixel_mask=pixel_mask,
-        center_of_mass=center_of_mass,
-        volume=volume,
-        surface_area=surface_area
-    )
-    
-    return plane_segmentation
-
-#OPTION 1: Creates plane_segmentations for only mesh objects (no curves).
 
 def iterate_collections(collection, image_segmentation, imaging_plane):
     print(f"Iterating Collection: {collection.name}")
@@ -211,40 +182,10 @@ def iterate_collections(collection, image_segmentation, imaging_plane):
             print(f"Skipping child collection that is not valid: {child_collection.name}")
 
 
-# Debugging root_collection and image_segmentation
-print(f"image_segmentation: {image_segmentation}")
-
 # Call the iteration function, ensuring CollectionToNWB is not treated as a plane segmentation
 iterate_collections(root_collection, image_segmentation, imaging_plane)
 
 
-#OPTION 2: Creates plane_segmentations for non-mesh objects like curves and skips missing data values.
-
-def iterate_collections(collection, image_segmentation, imaging_plane):
-    print("Iterating Collection:", collection.name)
-    
-    # Iterate through all objects in the collection
-    for obj in collection.objects:
-        print(f"Object in iterator: {obj.name}")
-        
-        # Process only MESH objects
-        if obj.type == 'MESH':
-            # Create a single PlaneSegmentation for the collection
-            segmentation_name = collection.name + '_plane_segmentation'
-            plane_segmentation = image_segmentation.create_plane_segmentation(
-            name=segmentation_name,
-            description='Output from segmenting a mesh in Blender',
-            imaging_plane=imaging_plane
-            )   
-        
-            print(f"Processing MESH object: {obj.name}")
-            BlenderMorphologyDataToNWB(obj, plane_segmentation)
-        else:
-            print(f"Skipping non-MESH object: {obj.name}")
-    
-    # Recursively iterate through child collections
-    for child_collection in collection.children:
-        iterate_collections(child_collection, image_segmentation, imaging_plane)
 
 #BEST PRACTICE: Use DANDI Archives convention:prepend sub-, insert _ses-
 #nwbfile_name = 'sub-' + 'subject_id' + '_ses-' + 'identifier' + '.nwb'
@@ -252,3 +193,99 @@ print(nwbfile.processing['MorphologyData'].data_interfaces)
 
 with NWBHDF5IO('SimpleAllenSegmentation.nwb', 'w') as io:
     io.write(nwbfile)
+
+#WIP: Supports Meshes and curves
+
+# def iterate_collections(collection, image_segmentation, imaging_plane):
+#     print("Iterating Collection:", collection.name)
+    
+#     # Iterate through all objects in the collection
+#     for obj in collection.objects:
+#         print(f"Object in iterator: {obj.name}")
+        
+#         # Process only MESH objects
+#         if obj.type == 'MESH':
+#             # Create a single PlaneSegmentation for the collection
+#             segmentation_name = collection.name + '_plane_segmentation'
+#             plane_segmentation = image_segmentation.create_plane_segmentation(
+#             name=segmentation_name,
+#             description='Output from segmenting a mesh in Blender',
+#             imaging_plane=imaging_plane
+#             )   
+        
+#             print(f"Processing MESH object: {obj.name}")
+#             BlenderMorphologyDataToNWB(obj, plane_segmentation)
+        
+#         elif obj.type == 'CURVE':
+
+#             # Create a single PlaneSegmentation for the collection
+#             segmentation_name = collection.name + '_plane_segmentation'
+#             plane_segmentation = image_segmentation.create_plane_segmentation(
+#             name=segmentation_name,
+#             description='Output from segmenting a mesh in Blender',
+#             imaging_plane=imaging_plane
+#             )
+
+#             print(f"Processing MESH object: {obj.name}")
+#             CurveMorphologyToNWB(obj, plane_segmentation)   
+        
+#         else:
+#             print(f"Skipping non-MESH object: {obj.name}")
+    
+#     # Recursively iterate through child collections
+#     for child_collection in collection.children:
+#         iterate_collections(child_collection, image_segmentation, imaging_plane)
+
+# #WIP: Duplicates Cell Types DB functionality.  Might be useful for Mesh/Curve Mashups.
+# def CurveMorphologyToNWB(obj, plane_segmentation):
+#     curve_data = obj.data
+    
+#     # General curve properties
+#     print(f"Curve Name: {obj.name}")
+#     # Iterate through each spline in the curve
+#     for spline_index, spline in enumerate(curve_data.splines):
+#         print(f"\n--- Spline {spline_index} ---")
+#         print(f"Spline Type: {spline.type}")
+#          # Iterate through each spline in the curve
+#         for spline_index, spline in enumerate(curve_data.splines):
+#             if spline.type == 'BEZIER':
+#                 # Handle Bezier spline data
+#                 for i, point in enumerate(spline.bezier_points):
+#                     writer.writerow([
+#                         spline_index, i, "BEZIER",
+#                         point.co.x, point.co.y, point.co.z,
+#                         point.handle_left.x, point.handle_left.y, point.handle_left.z,
+#                         point.handle_right.x, point.handle_right.y, point.handle_right.z,
+#                         point.handle_left_type, point.handle_right_type,
+#                         point.tilt, point.weight_softbody, ""  # NURBS weight is empty for Bezier
+#                     ])
+            
+#             elif spline.type == 'NURBS':
+#                 # Handle NURBS spline data
+#                 for i, point in enumerate(spline.points):
+#                     writer.writerow([
+#                         spline_index, i, "NURBS",
+#                         point.co.x, point.co.y, point.co.z,  # NURBS has no handles
+#                         "", "", "", "", "", "", "", point.weight  # NURBS has weights
+#                     ])
+            
+#             elif spline.type == 'POLY':
+#                 # Handle Poly spline data (Poly splines don't have handles or tilt)
+#                 for i, point in enumerate(spline.points):
+#                     writer.writerow([
+#                         spline_index, i, "POLY",
+#                         point.co.x, point.co.y, point.co.z,  # Poly has no handles
+#                         "", "", "", "", "", "", "", ""  # No handles or NURBS weight for Poly
+#                     ])
+
+    #TODO update with curve data types.
+    #     plane_segmentation.add_column('spline_index', 'spline_index')
+    # # Add ROI for this object
+    # plane_segmentation.add_roi(
+    #     pixel_mask=pixel_mask,
+    #     spline_index=cspline_index,
+    # )
+    
+    # return plane_segmentation
+        
+
